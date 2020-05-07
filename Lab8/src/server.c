@@ -29,6 +29,8 @@ char* readFile(char* filename) {
     }
     read (fd, buffer, st.st_size); //читаем файл
 
+    close(fd);
+
     return buffer; //возвращаем содержимое файла
 }
 
