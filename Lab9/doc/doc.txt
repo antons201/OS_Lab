@@ -1,0 +1,200 @@
+Для запуска helgring необходимо сбилдить проект, далее открыть терминал в дирректории cmake-build-debug и выполнить
+команду valgrind --tool=helgrind ./Lab9_n, где n - номер пункта задания.
+
+2. Запустим helgrind и получим следующий результат:
+
+==6089== Possible data race during read of size 4 at 0x30A014 by thread #1
+==6089== Locks held: none
+==6089==    at 0x108D02: main (main-race.c:15)
+==6089==
+==6089== This conflicts with a previous write of size 4 by thread #2
+==6089== Locks held: none
+==6089==    at 0x108CBA: worker (main-race.c:8)
+==6089==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==6089==    by 0x4E496DA: start_thread (pthread_create.c:463)
+==6089==    by 0x518288E: clone (clone.S:95)
+==6089==  Address 0x30a014 is 0 bytes inside data symbol "balance"
+==6089==
+==6089== ----------------------------------------------------------------
+==6089==
+==6089== Possible data race during write of size 4 at 0x30A014 by thread #1
+==6089== Locks held: none
+==6089==    at 0x108D0B: main (main-race.c:15)
+==6089==
+==6089== This conflicts with a previous write of size 4 by thread #2
+==6089== Locks held: none
+==6089==    at 0x108CBA: worker (main-race.c:8)
+==6089==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==6089==    by 0x4E496DA: start_thread (pthread_create.c:463)
+==6089==    by 0x518288E: clone (clone.S:95)
+==6089==  Address 0x30a014 is 0 bytes inside data symbol "balance"
+
+Проанализировав отчет, мы понимаем, что возможно происходит "гонка данных", т.к. переменная balance используется в двух
+потоках одновременно, а блокировки отсутствуют.
+
+Для исправления ошибки можно использовать блокировку, т.е.:
+1. Создать глобальную переменную для исключающей блокировки: pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+2. Заменить balance++; на:
+Pthread_mutex_lock(&m); // устанавливаем блокировку
+balance++; //изменяем глобальную переменную
+Pthread_mutex_unlock(&m); //снимаем блокировку
+
+3. Запустим helgrind и получим следующий результат:
+
+   ==6873== Thread #3: lock order "0x30A040 before 0x30A080" violated
+   ==6873==
+   ==6873== Observed (incorrect) order is: acquisition of lock at 0x30A080
+   ==6873==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+   ==6873==    by 0x108CE1: worker (main-deadlock.c:13)
+   ==6873==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x4E496DA: start_thread (pthread_create.c:463)
+   ==6873==    by 0x518288E: clone (clone.S:95)
+   ==6873==
+   ==6873==  followed by a later acquisition of lock at 0x30A040
+   ==6873==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+   ==6873==    by 0x108CED: worker (main-deadlock.c:14)
+   ==6873==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x4E496DA: start_thread (pthread_create.c:463)
+   ==6873==    by 0x518288E: clone (clone.S:95)
+   ==6873==
+   ==6873== Required order was established by acquisition of lock at 0x30A040
+   ==6873==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+   ==6873==    by 0x108CC7: worker (main-deadlock.c:10)
+   ==6873==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x4E496DA: start_thread (pthread_create.c:463)
+   ==6873==    by 0x518288E: clone (clone.S:95)
+   ==6873==
+   ==6873==  followed by a later acquisition of lock at 0x30A080
+   ==6873==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+   ==6873==    by 0x108CD3: worker (main-deadlock.c:11)
+   ==6873==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x4E496DA: start_thread (pthread_create.c:463)
+   ==6873==    by 0x518288E: clone (clone.S:95)
+   ==6873==
+   ==6873==  Lock at 0x30A040 was first observed
+   ==6873==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+   ==6873==    by 0x108CC7: worker (main-deadlock.c:10)
+   ==6873==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x4E496DA: start_thread (pthread_create.c:463)
+   ==6873==    by 0x518288E: clone (clone.S:95)
+   ==6873==  Address 0x30a040 is 0 bytes inside data symbol "m1"
+   ==6873==
+   ==6873==  Lock at 0x30A080 was first observed
+   ==6873==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+   ==6873==    by 0x108CD3: worker (main-deadlock.c:11)
+   ==6873==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+   ==6873==    by 0x4E496DA: start_thread (pthread_create.c:463)
+   ==6873==    by 0x518288E: clone (clone.S:95)
+   ==6873==  Address 0x30a080 is 0 bytes inside data symbol "m2"
+
+По отчету сделаем выводом о том, что мы используем неправильный порядок блокировки (неправльно используем мьютексы).
+
+5. Запустим helgrind и получим следующий результат:
+
+==7237== Thread #3: lock order "0x30A080 before 0x30A0C0" violated
+==7237==
+==7237== Observed (incorrect) order is: acquisition of lock at 0x30A0C0
+==7237==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+==7237==    by 0x108CED: worker (main-deadlock-global.c:15)
+==7237==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x4E496DA: start_thread (pthread_create.c:463)
+==7237==    by 0x518288E: clone (clone.S:95)
+==7237==
+==7237==  followed by a later acquisition of lock at 0x30A080
+==7237==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+==7237==    by 0x108CF9: worker (main-deadlock-global.c:16)
+==7237==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x4E496DA: start_thread (pthread_create.c:463)
+==7237==    by 0x518288E: clone (clone.S:95)
+==7237==
+==7237== Required order was established by acquisition of lock at 0x30A080
+==7237==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+==7237==    by 0x108CD3: worker (main-deadlock-global.c:12)
+==7237==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x4E496DA: start_thread (pthread_create.c:463)
+==7237==    by 0x518288E: clone (clone.S:95)
+==7237==
+==7237==  followed by a later acquisition of lock at 0x30A0C0
+==7237==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+==7237==    by 0x108CDF: worker (main-deadlock-global.c:13)
+==7237==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x4E496DA: start_thread (pthread_create.c:463)
+==7237==    by 0x518288E: clone (clone.S:95)
+==7237==
+==7237==  Lock at 0x30A080 was first observed
+==7237==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+==7237==    by 0x108CD3: worker (main-deadlock-global.c:12)
+==7237==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x4E496DA: start_thread (pthread_create.c:463)
+==7237==    by 0x518288E: clone (clone.S:95)
+==7237==  Address 0x30a080 is 0 bytes inside data symbol "m1"
+==7237==
+==7237==  Lock at 0x30A0C0 was first observed
+==7237==    at 0x4C3403C: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x108AB2: Pthread_mutex_lock (mythreads.h:23)
+==7237==    by 0x108CDF: worker (main-deadlock-global.c:13)
+==7237==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7237==    by 0x4E496DA: start_thread (pthread_create.c:463)
+==7237==    by 0x518288E: clone (clone.S:95)
+==7237==  Address 0x30a0c0 is 0 bytes inside data symbol "m2"
+
+Видим, что отчет аналогичен предыдущему, т.е. helgrind сообщает о взаимной блокировке, хотя благодаря глобальной блокировке
+этого уже не происходит.
+
+6. Запустим helgrind и получим следующий результат:
+
+==7389== Possible data race during read of size 4 at 0x30A014 by thread #1
+==7389== Locks held: none
+==7389==    at 0x108D5E: main (main-signal.c:16)
+==7389==
+==7389== This conflicts with a previous write of size 4 by thread #2
+==7389== Locks held: none
+==7389==    at 0x108D11: worker (main-signal.c:9)
+==7389==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7389==    by 0x4E496DA: start_thread (pthread_create.c:463)
+==7389==    by 0x518288E: clone (clone.S:95)
+==7389==  Address 0x30a014 is 0 bytes inside data symbol "done"
+==7389==
+==7389== ----------------------------------------------------------------
+==7389==
+==7389== Possible data race during write of size 1 at 0x5C531A5 by thread #1
+==7389== Locks held: none
+==7389==    at 0x4C3C546: mempcpy (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7389==    by 0x50EC993: _IO_file_xsputn@@GLIBC_2.2.5 (fileops.c:1258)
+==7389==    by 0x50E1A8E: puts (ioputs.c:40)
+==7389==    by 0x108D73: main (main-signal.c:18)
+==7389==  Address 0x5c531a5 is 21 bytes inside a block of size 1,024 alloc'd
+==7389==    at 0x4C30F2F: malloc (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7389==    by 0x50DF18B: _IO_file_doallocate (filedoalloc.c:101)
+==7389==    by 0x50EF378: _IO_doallocbuf (genops.c:365)
+==7389==    by 0x50EE497: _IO_file_overflow@@GLIBC_2.2.5 (fileops.c:759)
+==7389==    by 0x50EC9EC: _IO_file_xsputn@@GLIBC_2.2.5 (fileops.c:1266)
+==7389==    by 0x50E1A8E: puts (ioputs.c:40)
+==7389==    by 0x108D10: worker (main-signal.c:8)
+==7389==    by 0x4C36C26: ??? (in /usr/lib/valgrind/vgpreload_helgrind-amd64-linux.so)
+==7389==    by 0x4E496DA: start_thread (pthread_create.c:463)
+==7389==    by 0x518288E: clone (clone.S:95)
+==7389==  Block was alloc'd by thread #2
+
+Проанализировав отчет, можем выяснить, что helgrind сообщает о возможной гонке данных. (А именно о возможном одновременном
+использовании переменной date и функции printf() сразу в двух потоках).
+Данный способ ожидания потока не является эффективным, т.к. мы просто так тратим в течение некоторого времени ресурсы в
+ожидающем потоке.
+
+8. Запустим helgrind и получим следующий результат:
+
+==7621== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 7 from 7)
+
+Видим, что ошибки отсутствуют. Данный подход более эффективен, т.к. не расходует ресурсы процессора на ненужне действия.
+(Благодаря тому, что поток находится в ожидании до тех пор, пока не придет сигнал)
