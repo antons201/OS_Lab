@@ -11,7 +11,7 @@ int main() {
         exit(1);
     }
 
-    while (i < 10) { //бесконечный цикл
+    while (i) { //бесконечный цикл
         fseek(file, 0, SEEK_SET); //смещаем указатель на начало файла
 
         while (fread(&buff, 1, 1, file) != 0) { //читаем файл
